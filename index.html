@@ -22508,13 +22508,16 @@ Example format: ["keyword one","keyword two","keyword three"]
 Focus on: service + city variations, question-based keywords, nearby city variations, service type variations, and problem/solution keywords. Keep them natural for local SEO.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/claude', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
+        apiKey,
+        body: {
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        }
       })
     });
     const data = await res.json();
@@ -22685,13 +22688,16 @@ WRITING RULES:
   showStatus('gen-status', '⟳ Claude is writing your location page...', '');
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/claude', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
+        apiKey,
+        body: {
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: prompt }]
+        }
       })
     });
     const data = await res.json();
