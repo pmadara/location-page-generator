@@ -22164,7 +22164,7 @@ var __async = (__this, __arguments, generator) => {
       <div class="card-title">⚙ API Key</div>
       <label>Anthropic API Key</label>
       <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off">
-      <div class="helper">Stored in memory only. Never saved.</div>
+      <div class="helper">Saved locally in your browser. Only you can see it.</div>
     </div>
 
     <!-- Client Profile -->
@@ -22952,6 +22952,17 @@ function showStatus(id, msg, type) {
 // ============================================================
 renderSavedProfiles();
 renderServicesList([]);
+
+// Load saved API key from localStorage
+const savedKey = localStorage.getItem('hitmeseo_apikey');
+if (savedKey) document.getElementById('api-key').value = savedKey;
+
+// Save API key to localStorage on change
+document.getElementById('api-key').addEventListener('input', function() {
+  const val = this.value.trim();
+  if (val) localStorage.setItem('hitmeseo_apikey', val);
+  else localStorage.removeItem('hitmeseo_apikey');
+});
 </script>
 </body>
 </html>
