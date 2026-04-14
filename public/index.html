@@ -22274,7 +22274,7 @@ var __async = (__this, __arguments, generator) => {
 
       <div class="card">
         <div class="card-title">✦ Generate Page</div>
-        <p class="muted" style="margin-bottom:14px;">Claude will write a fully structured location page following Hit Me SEO heading rules: H1 = meta title, H2 = flip-flop, H3s = randomized alternating [Service City] / [City Service], FAQ div styled as H2 with H4 questions, Why Choose section, no CTAs after Why Choose, 750–1,200 words.</p>
+        <p class="muted" style="margin-bottom:14px;">Claude will write a fully structured location page following Hit Me SEO heading rules: H1 = meta title, H2 = flip-flop, H3s = randomized alternating [Service City] / [City Service], FAQ heading = City ST Keyword FAQs, Why Choose section, no CTAs after Why Choose, 750–1,200 words. No back-to-back headings — every heading must be followed by body text.</p>
         <button class="btn btn-gold btn-full" onclick="generatePage()" id="gen-btn" style="font-family:'Syne',sans-serif; font-size:0.95rem; font-weight:700; padding:14px;">
           ✦ Generate Location Page
         </button>
@@ -22642,7 +22642,7 @@ async function generatePage() {
     return `[SERVICE-${i+1}]\n[H3]\n${h3}\n[P1]\nWrite first paragraph about ${s} in ${city}, max 4 lines.\n[P2]\nWrite second paragraph about ${s}, max 4 lines.`;
   }).join('\n\n');
 
-  const faqKeyword = mainKw || `${mainService} ${city}, ${st}`;
+  const faqKeyword = `${city} ${st} ${mainKw || mainService}`;
 
   const prompt = `You are an expert local SEO content writer for Hit Me SEO agency. Output ONLY the structured content below using the exact markers — no preamble, no commentary, no extra text outside the markers.
 
@@ -22661,14 +22661,17 @@ Write exactly 150-160 characters. Must include "${baseKeyword}" and "${city}". E
 [H1]
 ${metaTitle}
 
-[H2]
-Write a natural flip-flop of the H1. Rearrange the same concepts — do not just add "in" or swap two words. Make it read like a genuinely different but equivalent headline.
-
 [INTRO-P1]
 One paragraph, max 4 lines. Do NOT open with "${biz}". Mention ${city} naturally. Human tone. No clichés.
 
 [INTRO-P2]
 Second intro paragraph, max 4 lines. Different angle from P1. No CTA language anywhere.
+
+[H2]
+Write a natural flip-flop of the H1. Rearrange the same concepts — do not just add "in" or swap two words. Make it read like a genuinely different but equivalent headline.
+
+[H2-BRIDGE]
+One paragraph, max 3 lines. Briefly introduce the range of services available in ${city}. Transition naturally into the individual service sections below. No CTA language.
 
 ${serviceSections}
 
@@ -22705,6 +22708,9 @@ Trust and quality paragraph, max 4 lines. NO call to action. NO "call us".
 Second why-choose paragraph, max 4 lines. NO CTAs. This is the final section — nothing comes after this.
 
 WRITING RULES:
+- CRITICAL: NEVER output two headings back-to-back. Every heading (H1, H2, H3) MUST be followed by at least one paragraph of body text before the next heading appears. No exceptions.
+- CRITICAL: Each marker must contain ONLY what it describes. [H3] gets ONLY the heading text (3-5 words). [P1]/[P2] get ONLY paragraph text. [FAQ-H4-N] gets ONLY the question. [FAQ-P-N] gets ONLY the answer. NEVER combine a heading with its paragraph or a question with its answer under one marker.
+- CRITICAL: Do NOT add any sections, markers, or content beyond what is specified above. No CTA section, no "Ready to clear your space", no "Contact us today" — the page ends after [WHY-P2]. Nothing comes after it.
 - Human tone — sound like a real writer, not a template
 - No "call us", "contact us", "give us a call", "look no further", "cutting-edge", "state-of-the-art", "seamless"
 - Max 4 lines per paragraph — always
@@ -22772,7 +22778,7 @@ function parseAndRender(raw, restrictions, metaTitle) {
       sections.push({ type: 'h1', text: collectText() }); continue;
     } else if (line === '[H2]' || line === '[WHY-H2]') {
       sections.push({ type: 'h2', text: collectText() }); continue;
-    } else if (line === '[INTRO-P1]' || line === '[INTRO-P2]' || line === '[WHY-P1]' || line === '[WHY-P2]') {
+    } else if (line === '[INTRO-P1]' || line === '[INTRO-P2]' || line === '[H2-BRIDGE]' || line === '[WHY-P1]' || line === '[WHY-P2]') {
       sections.push({ type: 'p', text: collectText() }); continue;
     } else if (line.startsWith('[SERVICE-')) {
       i++; continue;
@@ -22790,9 +22796,59 @@ function parseAndRender(raw, restrictions, metaTitle) {
     i++;
   }
 
-  state.generatedContent = sections;
-  state.generatedText = sections.map(s => s.text).join('\n');
-  renderPreview(sections, restrictions);
+  // DEFENSIVE FIXES: split any merged content the LLM produced
+  const fixed = [];
+  for (const s of sections) {
+    // Fix merged H3: if heading text is > 80 chars, split at first sentence boundary after ~40 chars
+    if (s.type === 'h3' && s.text.length > 80) {
+      const words = s.text.split(' ');
+      // Find a reasonable split point (heading is typically 3-5 words)
+      let splitIdx = Math.min(5, words.length);
+      // Look for natural break: next word starts a sentence (capital after short heading)
+      for (let j = 3; j < Math.min(8, words.length); j++) {
+        if (words[j] && /^[A-Z]/.test(words[j]) && j >= 3) { splitIdx = j; break; }
+      }
+      const heading = words.slice(0, splitIdx).join(' ');
+      const body = words.slice(splitIdx).join(' ');
+      fixed.push({ type: 'h3', text: heading });
+      if (body) {
+        // Split body into ~2 paragraphs
+        const sentences = body.split(/(?<=[.!?])\s+/);
+        const mid = Math.ceil(sentences.length / 2);
+        fixed.push({ type: 'p', text: sentences.slice(0, mid).join(' ') });
+        if (mid < sentences.length) fixed.push({ type: 'p', text: sentences.slice(mid).join(' ') });
+      }
+    }
+    // Fix merged FAQ question: if question text contains answer (text after ?)
+    else if (s.type === 'faq-q' && s.text.includes('?') && s.text.indexOf('?') < s.text.length - 5) {
+      const qEnd = s.text.indexOf('?') + 1;
+      const question = s.text.substring(0, qEnd).trim();
+      const answer = s.text.substring(qEnd).trim();
+      fixed.push({ type: 'faq-q', text: question });
+      if (answer) fixed.push({ type: 'faq-a', text: answer });
+    }
+    // Fix merged H2: if heading text is > 100 chars, likely has body content merged in
+    else if (s.type === 'h2' && s.text.length > 100) {
+      // Find sentence boundary for split
+      const sentences = s.text.split(/(?<=[.!?])\s+/);
+      const heading = sentences[0].replace(/[.!?]$/, ''); // First sentence/phrase as heading
+      const body = sentences.slice(1).join(' ');
+      fixed.push({ type: 'h2', text: heading });
+      if (body) {
+        const bodySentences = body.split(/(?<=[.!?])\s+/);
+        const mid = Math.ceil(bodySentences.length / 2);
+        fixed.push({ type: 'p', text: bodySentences.slice(0, mid).join(' ') });
+        if (mid < bodySentences.length) fixed.push({ type: 'p', text: bodySentences.slice(mid).join(' ') });
+      }
+    }
+    else {
+      fixed.push(s);
+    }
+  }
+
+  state.generatedContent = fixed;
+  state.generatedText = fixed.map(s => s.text).join('\n');
+  renderPreview(fixed, restrictions);
   updateWordCount();
 }
 
