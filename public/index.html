@@ -22327,6 +22327,7 @@ const state = {
   generatedContent: null,
   generatedText: '',
   profiles: JSON.parse(localStorage.getItem('hitmeseo_profiles') || '[]'),
+  activeProfileName: null,
 };
 
 // ============================================================
@@ -22383,8 +22384,17 @@ function loadProfile(p) {
   document.getElementById('website-url').value = p.website || '';
   document.getElementById('usp').value = p.usp || '';
   document.getElementById('restrictions').value = (p.restrictions || []).join('\n');
-  state.currentServices = p.services || [];
+  state.activeProfileName = p.name || null;
   renderServicesList(p.services || []);
+}
+
+// Auto-save services back to the active loaded profile
+function autoSaveServices() {
+  if (!state.activeProfileName) return;
+  const idx = state.profiles.findIndex(p => p.name === state.activeProfileName);
+  if (idx < 0) return;
+  state.profiles[idx].services = [...currentServices];
+  localStorage.setItem('hitmeseo_profiles', JSON.stringify(state.profiles));
 }
 
 function deleteProfile(id) {
@@ -22430,11 +22440,13 @@ function addService() {
   if (!currentServices.includes(val)) currentServices.push(val);
   input.value = '';
   renderServicesList();
+  autoSaveServices();
 }
 
 function removeService(idx) {
   currentServices.splice(idx, 1);
   renderServicesList();
+  autoSaveServices();
 }
 
 document.getElementById('service-input').addEventListener('keypress', e => {
