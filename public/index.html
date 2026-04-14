@@ -22274,7 +22274,7 @@ var __async = (__this, __arguments, generator) => {
 
       <div class="card">
         <div class="card-title">✦ Generate Page</div>
-        <p class="muted" style="margin-bottom:14px;">Claude will write a fully structured location page following Hit Me SEO heading rules: H1 = meta title, H2 = flip-flop, H3s = randomized alternating [Service City] / [City Service], FAQ heading = City ST Keyword FAQs, Why Choose section, no CTAs after Why Choose, 750–1,200 words. No back-to-back headings — every heading must be followed by body text.</p>
+        <p class="muted" style="margin-bottom:14px;">Claude will write a fully structured location page following Hit Me SEO heading rules: H1 = meta title, H2 = Keyword Services in City ST, H3s = randomized alternating [Service City] / [City Service], FAQ heading = City ST Keyword FAQs, Why Choose section, no CTAs after Why Choose, 750–1,200 words. No back-to-back headings — every heading must be followed by body text.</p>
         <button class="btn btn-gold btn-full" onclick="generatePage()" id="gen-btn" style="font-family:'Syne',sans-serif; font-size:0.95rem; font-weight:700; padding:14px;">
           ✦ Generate Location Page
         </button>
@@ -22668,7 +22668,7 @@ One paragraph, max 4 lines. Do NOT open with "${biz}". Mention ${city} naturally
 Second intro paragraph, max 4 lines. Different angle from P1. No CTA language anywhere.
 
 [H2]
-Write a natural flip-flop of the H1. Rearrange the same concepts — do not just add "in" or swap two words. Make it read like a genuinely different but equivalent headline.
+${baseKeyword} Services in ${city}, ${st}
 
 [H2-BRIDGE]
 One paragraph, max 3 lines. Briefly introduce the range of services available in ${city}. Transition naturally into the individual service sections below. No CTA language.
@@ -22699,7 +22699,7 @@ Fourth realistic question
 Answer in 2-3 sentences.
 
 [WHY-H2]
-Why ${city} Homeowners Choose ${biz}
+Write a heading: "Why ${city} [audience] Choose ${biz}" — use "Homeowners" for home/property services (junk removal, plumbing, roofing, etc.), "Businesses" for B2B services (marketing, IT, consulting, etc.), or "Residents" if the service applies to both. Pick the one that fits ${mainService}.
 
 [WHY-P1]
 Trust and quality paragraph, max 4 lines. NO call to action. NO "call us".
