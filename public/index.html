@@ -22450,7 +22450,13 @@ function parseKeywords() {
   const lines = raw.split('\n');
   const keywords = [];
   for (const line of lines) {
-    const cleaned = line.trim().replace(/\s+\d+\/\d+\s+\d+\s+sources?/i, '').trim();
+    if (!line.trim()) continue;
+    // Strip Frase format: "keyword text 0/6 12 sources" or "keyword text 0/3 7 sources"
+    // Also handles: "keyword text" with no Frase data
+    const cleaned = line.trim()
+      .replace(/\s+\d+\/\d+\s+\d+\s+sources?\s*$/i, '')  // strip "0/6 12 sources" at end
+      .replace(/\s+\d+\/\d+\s*$/i, '')                       // strip "0/6" at end
+      .trim();
     if (cleaned.length > 1) keywords.push({ keyword: cleaned });
   }
   const seen = new Set();
@@ -22606,81 +22612,92 @@ async function generatePage() {
   const aiKws = state.selectedAiKeywords.slice(0, 15);
   const allKws = [...new Set([...frazeKws, ...aiKws])];
 
-  const metaTitle = mainKw
-    ? mainKw.includes(biz) ? mainKw : `${mainKw} - ${biz}`
-    : `${mainService} ${city}, ${st} - ${biz}`;
+  // Meta title: City, ST Keyword - Business Name
+  const baseKeyword = mainKw || mainService;
+  const metaTitle = `${city}, ${st} ${baseKeyword} - ${biz}`;
 
-  const serviceList = services.length ? services : [mainService];
+  // Shuffle services randomly
+  const allServices = services.length ? [...services] : [mainService];
+  for (let i = allServices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allServices[i], allServices[j]] = [allServices[j], allServices[i]];
+  }
+  const serviceList = allServices;
 
-  const prompt = `You are an expert local SEO content writer for Hit Me SEO agency. Write a complete location page following these EXACT rules:
+  // Build service sections: odd index (0,2,4) = [Service] [City], even index (1,3,5) = [City] [Service]
+  const serviceSections = serviceList.map((s, i) => {
+    const h3 = i % 2 === 0 ? `${s} ${city}` : `${city} ${s}`;
+    return `[SERVICE-${i+1}]\n[H3]\n${h3}\n[P1]\nWrite first paragraph about ${s} in ${city}, max 4 lines.\n[P2]\nWrite second paragraph about ${s}, max 4 lines.`;
+  }).join('\n\n');
 
-BUSINESS INFO:
-- Business Name: ${biz}
-- Service/Industry: ${mainService}
-- Location: ${city}, ${st}${county ? ` (${county})` : ''}${nearby ? `\n- Nearby Cities: ${nearby}` : ''}${usp ? `\n- USP: ${usp}` : ''}
-- Services to cover: ${serviceList.join(', ')}
+  const faqKeyword = mainKw || `${mainService} ${city}, ${st}`;
 
-META TITLE (use exactly as written): ${metaTitle}
+  const prompt = `You are an expert local SEO content writer for Hit Me SEO agency. Output ONLY the structured content below using the exact markers — no preamble, no commentary, no extra text outside the markers.
 
-KEYWORD TARGETS (weave these in naturally — do not stuff): ${allKws.length ? allKws.join(', ') : 'None provided, use natural variations of the main service + location.'}
-
-${restrictions.length ? `STRICT RESTRICTIONS (never violate these):\n${restrictions.map(r => '- ' + r).join('\n')}` : ''}
-
-MANDATORY STRUCTURE — output in this exact format with these exact markers:
+BUSINESS: ${biz}
+SERVICE: ${mainService}
+LOCATION: ${city}, ${st}${county ? ` | County: ${county}` : ''}${nearby ? ` | Nearby: ${nearby}` : ''}${usp ? ` | USP: ${usp}` : ''}
+KEYWORDS (weave in naturally, do not stuff): ${allKws.length ? allKws.join(', ') : `${mainService} ${city} ${st}`}
+${restrictions.length ? `\nSTRICT RESTRICTIONS — never violate:\n${restrictions.map(r => '- ' + r).join('\n')}` : ''}
 
 [META-TITLE]
 ${metaTitle}
 
 [META-DESC]
-Write a compelling 150-160 character meta description including the main keyword and a call to action.
+Write exactly 150-160 characters. Must include "${baseKeyword}" and "${city}". End with a soft discovery phrase — NOT "call us" or "contact us".
 
 [H1]
 ${metaTitle}
 
 [H2]
-Write a flip-flop rewrite of the H1 (same words/concepts, rearranged naturally, no "in" required)
+Write a natural flip-flop of the H1. Rearrange the same concepts — do not just add "in" or swap two words. Make it read like a genuinely different but equivalent headline.
 
-[INTRO-P]
-Write 2 opening paragraphs (max 4 lines each) introducing the business and location naturally. Do NOT start with the business name. Sound like a real writer, not a template.
+[INTRO-P1]
+One paragraph, max 4 lines. Do NOT open with "${biz}". Mention ${city} naturally. Human tone. No clichés.
 
-[SERVICE: ${serviceList[0]}]
-[H3]
-${/* first service, city first */ ''}Write H3 as: [City] [Service Name] (e.g. "${city} ${serviceList[0]}")
-[P1]
-First paragraph about this service (max 4 lines)
-[P2]
-Second paragraph about this service (max 4 lines)
+[INTRO-P2]
+Second intro paragraph, max 4 lines. Different angle from P1. No CTA language anywhere.
 
-${serviceList.slice(1).map((s, i) => `[SERVICE: ${s}]
-[H3]
-Write H3 as: ${i % 2 === 0 ? `[Service Name] [City] (e.g. "${s} ${city}")` : `[City] [Service Name] (e.g. "${city} ${s}")`}
-[P1]
-First paragraph (max 4 lines)
-[P2]
-Second paragraph (max 4 lines)
-`).join('\n')}
+${serviceSections}
 
 [FAQ-DIV-HEADING]
-Write: ${mainKw || mainService + ' ' + city + ', ' + st} FAQs
+${faqKeyword} FAQs
 
-[FAQ]
-Write 3-4 frequently asked questions and answers. Each question as: [Q] question text [A] answer text (max 3 lines each). Make the questions genuinely useful to someone searching for this service in ${city}.
+[FAQ-H4-1]
+Write a genuine question a homeowner in ${city} would search about ${mainService}
+[FAQ-P-1]
+Answer in 2-3 sentences.
 
-[WHY-CHOOSE-H2]
-Write an H2 for the Why Choose section (e.g. "Why ${city} Residents Choose ${biz}")
+[FAQ-H4-2]
+Second realistic question
+[FAQ-P-2]
+Answer in 2-3 sentences.
 
-[WHY-CHOOSE-P]
-Write 2 paragraphs (max 4 lines each) on why customers should choose this business. Focus on trust signals, local knowledge, and quality. NO CTAs after this point. NO "call us" language anywhere on this page.
+[FAQ-H4-3]
+Third realistic question
+[FAQ-P-3]
+Answer in 2-3 sentences.
+
+[FAQ-H4-4]
+Fourth realistic question
+[FAQ-P-4]
+Answer in 2-3 sentences.
+
+[WHY-H2]
+Why ${city} Homeowners Choose ${biz}
+
+[WHY-P1]
+Trust and quality paragraph, max 4 lines. NO call to action. NO "call us".
+
+[WHY-P2]
+Second why-choose paragraph, max 4 lines. NO CTAs. This is the final section — nothing comes after this.
 
 WRITING RULES:
-- Sound like a real human writer, not a template
-- Vary sentence structure — avoid repetitive openings
-- No "call us today" or "contact us" or "give us a call" language anywhere
-- No promises of specific response times or guarantees
-- Max 4 lines per paragraph — break long thoughts into two paragraphs
-- Total word count target: 750-1,200 words
-- Weave in location naturally — don't force it into every sentence
-- No "cutting-edge" or "state-of-the-art" or similar clichés`;
+- Human tone — sound like a real writer, not a template
+- No "call us", "contact us", "give us a call", "look no further", "cutting-edge", "state-of-the-art", "seamless"
+- Max 4 lines per paragraph — always
+- 750–1,200 words total
+- Weave location in naturally — not forced every sentence`;
 
   const genBtn = document.getElementById('gen-btn');
   genBtn.disabled = true;
@@ -22721,98 +22738,42 @@ function parseAndRender(raw, restrictions, metaTitle) {
   const sections = [];
   const lines = raw.split('\n');
   let i = 0;
-  let svcIndex = 0;
-  let inFaq = false;
-  let currentFaqQ = null;
+
+  function collectText() {
+    i++;
+    const parts = [];
+    while (i < lines.length && !lines[i].trim().startsWith('[')) {
+      if (lines[i].trim()) parts.push(lines[i].trim());
+      i++;
+    }
+    return parts.join(' ');
+  }
 
   while (i < lines.length) {
     const line = lines[i].trim();
 
     if (line === '[META-TITLE]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'meta-title', text });
+      sections.push({ type: 'meta-title', text: collectText() }); continue;
     } else if (line === '[META-DESC]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'meta-desc', text });
+      sections.push({ type: 'meta-desc', text: collectText() }); continue;
     } else if (line === '[H1]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'h1', text });
-    } else if (line === '[H2]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'h2', text });
-    } else if (line === '[INTRO-P]') {
-      i++;
-      let paras = [];
-      while (i < lines.length && !lines[i].trim().startsWith('[')) {
-        if (lines[i].trim()) paras.push(lines[i].trim());
-        i++;
-      }
-      // Split into paragraphs on blank lines or after ~4 lines
-      let current = [];
-      for (const p of paras) {
-        if (!p && current.length) { sections.push({ type: 'p', text: current.join(' ') }); current = []; }
-        else if (p) current.push(p);
-      }
-      if (current.length) sections.push({ type: 'p', text: current.join(' ') });
-      continue;
-    } else if (line.startsWith('[SERVICE:')) {
-      svcIndex++;
-      i++;
-      continue;
+      sections.push({ type: 'h1', text: collectText() }); continue;
+    } else if (line === '[H2]' || line === '[WHY-H2]') {
+      sections.push({ type: 'h2', text: collectText() }); continue;
+    } else if (line === '[INTRO-P1]' || line === '[INTRO-P2]' || line === '[WHY-P1]' || line === '[WHY-P2]') {
+      sections.push({ type: 'p', text: collectText() }); continue;
+    } else if (line.startsWith('[SERVICE-')) {
+      i++; continue;
     } else if (line === '[H3]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'h3', text });
+      sections.push({ type: 'h3', text: collectText() }); continue;
     } else if (line === '[P1]' || line === '[P2]') {
-      i++;
-      let paras = [];
-      while (i < lines.length && !lines[i].trim().startsWith('[')) {
-        if (lines[i].trim()) paras.push(lines[i].trim());
-        i++;
-      }
-      sections.push({ type: 'p', text: paras.join(' ') });
-      continue;
+      sections.push({ type: 'p', text: collectText() }); continue;
     } else if (line === '[FAQ-DIV-HEADING]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'faq-heading', text });
-    } else if (line === '[FAQ]') {
-      i++;
-      while (i < lines.length && !lines[i].trim().startsWith('[WHY')) {
-        const l = lines[i].trim();
-        if (l.startsWith('[Q]')) sections.push({ type: 'faq-q', text: l.replace('[Q]', '').trim() });
-        else if (l.startsWith('[A]')) sections.push({ type: 'faq-a', text: l.replace('[A]', '').trim() });
-        else if (l && !l.startsWith('[')) {
-          // might be continuation
-          if (sections.length && sections[sections.length-1].type === 'faq-a') {
-            sections[sections.length-1].text += ' ' + l;
-          }
-        }
-        i++;
-      }
-      continue;
-    } else if (line === '[WHY-CHOOSE-H2]') {
-      i++;
-      const text = lines[i] ? lines[i].trim() : '';
-      sections.push({ type: 'h2', text });
-    } else if (line === '[WHY-CHOOSE-P]') {
-      i++;
-      let paras = [];
-      while (i < lines.length && !lines[i].trim().startsWith('[')) {
-        if (lines[i].trim()) paras.push(lines[i].trim());
-        i++;
-      }
-      let current = [];
-      for (const p of paras) {
-        if (!p && current.length) { sections.push({ type: 'p', text: current.join(' ') }); current = []; }
-        else if (p) current.push(p);
-      }
-      if (current.length) sections.push({ type: 'p', text: current.join(' ') });
-      continue;
+      sections.push({ type: 'faq-heading', text: collectText() }); continue;
+    } else if (line.match(/^\[FAQ-H4-\d+\]$/)) {
+      sections.push({ type: 'faq-q', text: collectText() }); continue;
+    } else if (line.match(/^\[FAQ-P-\d+\]$/)) {
+      sections.push({ type: 'faq-a', text: collectText() }); continue;
     }
     i++;
   }
