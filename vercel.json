@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/api/claude", "destination": "/api/claude" }
+    {
+      "source": "/api/claude",
+      "destination": "/api/claude"
+    },
+    {
+      "source": "/",
+      "destination": "/public/index.html"
+    }
   ]
 }
